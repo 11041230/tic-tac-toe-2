@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>人類 vs AI 井字棋</title>
+<style>
+  body{
+    margin:0;
+    min-height:100vh;
+    font-family: system-ui, sans-serif;
+    background: radial-gradient(circle at top, #1b2735, #090a0f);
+    color:#fff;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    overflow:hidden;
+  }
+  h1{margin-bottom:10px; letter-spacing:2px;}
+  .hint{opacity:.8; font-size:14px; margin-bottom:14px;}
+
+  .board{
+    display:grid;
+    grid-template-columns:repeat(3,90px);
+    gap:10px;
+  }
+  .cell{
+    width:90px; height:90px;
+    background:rgba(255,255,255,.1);
+    border-radius:14px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    font-size:46px;
+    cursor:pointer;
+    transition:background .2s, transform .1s;
+  }
+  .cell:hover{background:rgba(255,255,255,.2); transform:translateY(-2px)}
+
+  .status{margin-top:16px; font-size:18px;}
+  button{
+    margin-top:12px;
+    padding:8px 18px;
+    border:none;
+    border-radius:20px;
+    background:#4aa3ff;
+    color:#fff;
+    cursor:pointer;
+    font-size:14px;
+    display:none;
+  }
+
+  /* 特效 */
+  .firework, .rain{
+    position:fixed;
+    inset:0;
+    pointer-events:none;
+  }
+  .firework span{
+    position:absolute;
+    width:6px; height:6px;
+    border-radius:50%;
+    background:yellow;
+    animation:boom 1s ease-out forwards;
+  }
+  @keyframes boom{
+    from{transform:scale(1); opacity:1}
+    to{transform:translate(var(--x), var(--y)) scale(0); opacity:0}
+  }
+
+  .rain span{
+    position:absolute;
+    top:-10px;
+    width:2px; height:14px;
+    background:#8ecaff;
+    animation:fall linear infinite;
+  }
+  @keyframes fall{
+    to{transform:translateY(110vh)}
+  }
+</style>
+</head>
+<body>
+<h1>人類 vs AI</h1>
+<div class="hint">每方最多只能同時存在 3 子，第 4 子會吃掉最早的那一子</div>
+
+<div class="board" id="board"></div>
+<div class="status" id="status">你的回合（X）</div>
+<button id="restart">重新開始</button>
+
+<div class="firework" id="firework"></div>
+<div class="rain" id="rain"></div>
+
+<script>
+const boardEl = document.getElementById('board');
+const statusEl = document.getElementById('status');
+const fireworkEl = document.getElementById('firework');
+const rainEl = document.getElementById('rain');
+const restartBtn = document.getElementById('restart');
+
+let board = Array(9).fill(null);
+let humanMoves = [];
+let aiMoves = [];
+let gameOver = false;
+
+const wins = [
+  [0,1,2],[3,4,5],[6,7,8],
+  [0,3,6],[1,4,7],[2,5,8],
+  [0,4,8],[2,4,6]
+];
+
+function render(){
+  boardEl.innerHTML='';
+  board.forEach((v,i)=>{
+    const c=document.createElement('div');
+    c.className='cell';
+    c.textContent=v||'';
+    c.onclick=()=>humanMove(i);
+    boardEl.appendChild(c);
+  })
+}
+
+function humanMove(i){
+  if(gameOver || board[i]) return;
+  place(i,'X',humanMoves);
+  if(checkEnd('X')) return;
+  statusEl.textContent='AI 思考中…';
+  setTimeout(aiMove,500);
+}
+
+function aiMove(){
+  if(gameOver) return;
+  const i = bestMove();
+  place(i,'O',aiMoves);
+  checkEnd('O');
+}
+
+function place(i,player,queue){
+  if(queue.length===3){
+    const old = queue.shift();
+    board[old]=null;
+  }
+  board[i]=player;
+  queue.push(i);
+  render();
+}
+
+function checkEnd(p){
+  if(wins.some(w=>w.every(i=>board[i]===p))){
+    gameOver=true;
+    restartBtn.style.display='inline-block';
+    if(p==='X'){statusEl.textContent='你贏了！'; fireworks();}
+    else{statusEl.textContent='AI 勝利'; rain();}
+    return true;
+  }
+  statusEl.textContent = p==='X' ? 'AI 的回合' : '你的回合（X）';
+  return false;
+}
+
+function bestMove(){
+  const empty = board.map((v,i)=>v?null:i).filter(v=>v!==null);
+  for(const i of empty){
+    board[i]='O';
+    if(wins.some(w=>w.every(x=>board[x]==='O'))){board[i]=null; return i;}
+    board[i]=null;
+  }
+  for(const i of empty){
+    board[i]='X';
+    if(wins.some(w=>w.every(x=>board[x]==='X'))){board[i]=null; return i;}
+    board[i]=null;
+  }
+  if(empty.includes(4)) return 4;
+  const corners = empty.filter(i=>[0,2,6,8].includes(i));
+  if(corners.length) return corners[Math.floor(Math.random()*corners.length)];
+  return empty[Math.floor(Math.random()*empty.length)];
+}
+
+function fireworks(){
+  for(let i=0;i<80;i++){
+    const s=document.createElement('span');
+    s.style.left='50%'; s.style.top='50%';
+    s.style.setProperty('--x',`${(Math.random()-0.5)*400}px`);
+    s.style.setProperty('--y',`${(Math.random()-0.5)*400}px`);
+    fireworkEl.appendChild(s);
+    setTimeout(()=>s.remove(),1000);
+  }
+}
+
+function rain(){
+  for(let i=0;i<120;i++){
+    const s=document.createElement('span');
+    s.style.left=Math.random()*100+'vw';
+    s.style.animationDuration=0.8+Math.random()*0.8+'s';
+    rainEl.appendChild(s);
+  }
+}
+
+restartBtn.onclick=()=>location.reload();
+
+render();
+</script>
+</body>
+</html>
